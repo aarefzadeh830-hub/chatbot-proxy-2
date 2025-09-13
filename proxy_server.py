@@ -1,38 +1,36 @@
-# proxy/proxy_server.py
 from fastapi import FastAPI, Request
-import requests, os
+import os
+from openai import OpenAI
 
 app = FastAPI()
 
-OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+# تست سلامت سرور
+@app.get("/")
+def root():
+    return {"status": "ok"}
 
-@app.get('/')
-async def home():
-    return {'status':'ok'}
-
-@app.post('/chat')
+# مسیر اصلی چت
+@app.post("/chat")
 async def chat(request: Request):
-    body = await request.json()
-    user_message = body.get('message', '')
-    model = body.get('model', 'gpt-3.5-turbo')
-    max_length = int(body.get('max_length', 200))
+    data = await request.json()
+    user_message = data.get("message", "")
 
-    if not OPENAI_API_KEY:
-        return {'error':'Server missing OPENAI_API_KEY'} , 500
+    if not user_message:
+        return {"reply": "پیام خالی ارسال شد."}
 
-    headers = {
-        'Authorization': f'Bearer {OPENAI_API_KEY}',
-        'Content-Type': 'application/json'
-    }
-
-    data = {
-        'model': model,
-        'messages': [{'role':'user','content': user_message}],
-        'max_tokens': max_length
-    }
-
-    resp = requests.post('https://api.openai.com/v1/chat/completions', headers=headers, json=data, timeout=60)
     try:
-        return resp.json()
-    except Exception:
-        return {'error': 'invalid response from upstream', 'text': resp.text}
+        client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "تو یک دستیار فارسی هستی."},
+                {"role": "user", "content": user_message}
+            ]
+        )
+
+        reply = response.choices[0].message.content
+        return {"reply": reply}
+
+    except Exception as e:
+        return {"reply": f"خطا در سرور: {str(e)}"}
